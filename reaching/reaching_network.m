@@ -1,15 +1,7 @@
-function varargout = cycling_network(mode,T,factors,emg,varargin)
+function varargout = reaching_network(mode,T,emg,V,varargin)
 
-global N Ntilde P m m_in g muf gs gf
+global N P m u u_in muf gs gf
 
-%u_tilde_fin: input weights for the external input
-%U: orthogonal matrix of norm g that maps from space of Ntilde to N
-%Jmu: mean recurrent matrix in factor approximating network for spiking
-    %neurons
-%J0f: random f connections for facdtor approximating network for spiking
-    %neurons
-%J0s: random s connections for facdtor approximating network for spiking
-    %neurons
 %etaus: timescale of s synaptic currents in spiking model
 %etauf: timescale of f synaptic currents in spiking model
 %etauV: timescale of voltage in spiking model
@@ -24,22 +16,16 @@ global N Ntilde P m m_in g muf gs gf
 Tinit = 50;
 DTRLS = 2;
 dt = 1e-3;
+tauV = 1e-2;
 taus = 1e-1;
 tauf = 5e-3;
-tauV = 1e-2;
 vth = 1e-16;
 vr = -10;
 etaus = exp(-dt/taus);
 etauf = exp(-dt/tauf);
 etauV = exp(-dt/tauV);
 
-randseed = 3; 
-rng(randseed); %set ran seed, for ran matrcies
-
-u_tilde_fin = (-1 + 2 * rand(Ntilde,m_in));
-V = orth((-1 + 2 * rand(Ntilde,P)));
-U = g * (orth((-1 + 2 * rand(N,Ntilde))));
-u_fin = U * u_tilde_fin;  
+rng(1);
 Jmu = muf * (1/tauf) * 1/(N) * ones(N);
 J0f = gf * (1/tauf) * 1/sqrt(N) * randn(N);
 J0s = gs * (1/taus) * 1/sqrt(N) * randn(N);
@@ -111,10 +97,7 @@ end
 %initialize random seed, to set network into same initial state
 %go to different initial state it testing or gathering data
 rng(3);
-    
-%product of P to Ntilde, recurrent connectivity of factor generating network (if applicaabl)
-%and Ntilde to N. For going directory from P to N
-u = U * V;    
+     
 y = zeros(P,1); %learned input current
 ss = zeros(N,1); %slow presynaptic current/firing rate when using RLS
 sf = zeros(N,1); %fast presynaptic current when using RLS
@@ -145,24 +128,25 @@ while go %run until stop condition is met
         ttrial = 1; %reset trial time counter to 1
         t_trial_num = t_trial_num + 1; %increase trial count by 1
         
-        [fin,f,TTrial] = trial_oscfactor(dt,factors,emg);
+        if t_trial_num == 1
+            [xprimes,x,fin,f,TTrial] = factors_from_rate_model(emg);
+        else
+            [xprimes,x,fin,f,TTrial] = factors_from_rate_model(emg, x);
+        end
+        ytilde = V' * xprimes;
                  
         zs = zeros(m,TTrial); %for collecting z(t), for plotting
         vs = zeros(nplt,TTrial); %for collecting v(t), for plotting
         ys = zeros(P,TTrial);  %for collecdting y(t) for plotting
-        ytildes = zeros(P,TTrial); %for collecting ytilde(t) for plotting
 
         if strcmp(mode,'demean')
             zsT = zeros(N,TTrial); %for collecting recurrent inputs for mean computation
         end  
         
     end
-   
-    %use the provided factors
-    ytilde = factors(ttrial,:)';
-    
+           
     %integrate factor approximating model
-    vinf = J0fbars - vJsbar + u * y + J0ss + J0fs + u_fin * fin(:,ttrial);
+    vinf = J0fbars - vJsbar + u * y + J0ss + J0fs + u_in * fin(:,ttrial);
     v = vinf + (v - vinf) * etauV; %Voltage
 
     S = v >= vth; %spikes
@@ -183,7 +167,7 @@ while go %run until stop condition is met
         
         switch mode                
             case {'demean'}
-                y = ytilde; %use factor targets as feedback 
+                y = ytilde(:,ttrial); %use factor targets as feedback 
                 z = f(:,ttrial);
 
             case {'train','test'}                   
@@ -194,20 +178,19 @@ while go %run until stop condition is met
 
     else
         
-        y = ytilde;
+        y = ytilde(:,ttrial);
         z = f(:,ttrial);
       
     end
     
     zs(:,ttrial) = z; %output
     ys(:,ttrial) = y; %factors
-    ytildes(:,ttrial) = ytilde; %target factors
 
     vs(:,ttrial) = v(1:nplt);
     vs(S(1:nplt),ttrial) = 2 * (vth - vr);               
 
     if strcmp(mode,'demean')                                       
-       zsT(:,ttrial) = u * ytilde + J0ss + J0fs;                            
+       zsT(:,ttrial) = u * ytilde(:,ttrial) + J0ss + J0fs;                            
     end
             
     if t_trial_num > Tinit      
@@ -217,7 +200,7 @@ while go %run until stop condition is met
             xP = Pw * s;
             k = (1 + s' * xP)\xP';                        
             Pw = Pw - xP * k;
-            w = w - (y - ytilde) * k;
+            w = w - (y - ytilde(:,ttrial)) * k;
 
             xP = PW * [y;1];
             k = (1 + [y;1]' * xP)\xP';                        
@@ -230,8 +213,8 @@ while go %run until stop condition is met
         if ttrial == TTrial
 
             %compute normalized output error on this trial
-            nMSEy(t_trial_num-Tinit) = sum(diag((ys - ytildes) * (ys - ytildes)'))/...
-                sum(diag(ytildes * ytildes'));
+            nMSEy(t_trial_num-Tinit) = sum(diag((ys - ytilde) * (ys - ytilde)'))/...
+                sum(diag(ytilde * ytilde'));
 
             nMSEf(t_trial_num-Tinit) = sum(diag((zs - f) * (zs - f)'))/...
                 sum(diag(f * f'));
@@ -278,7 +261,7 @@ while go %run until stop condition is met
         for i = 1:nplt
             maxV = maxV + abs(min(ys(i,:)));
             set(lh_y(i),'XData',dt*[ttrial-TTrial+1:ttrial],'YData', ys(i,:) + maxV);
-            set(lh_ytilde(i),'XData',dt*[ttrial-TTrial+1:ttrial],'YData', ytildes(i,:) + maxV);
+            set(lh_ytilde(i),'XData',dt*[ttrial-TTrial+1:ttrial],'YData', ytilde(i,:) + maxV);
             maxV = maxV + max(ys(i,:));
         end                  
         axis tight

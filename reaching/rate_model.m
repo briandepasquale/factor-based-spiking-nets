@@ -2,7 +2,7 @@ function [xprimes,x,fin,f,TTrial] = rate_model(emg,varargin)
 
 global Ntilde m dt utilde utilde_in Jtilde
 
-F = @(x)tanh(x);
+F = @(x)tanh(x); %nonlinearity
 tau = 1e-2;
 etau = exp(-dt/tau);
 

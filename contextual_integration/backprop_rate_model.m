@@ -2,8 +2,8 @@ function [xprimes,fin,f,TTrial] = backprop_rate_model
 
 global Ntilde dt utilde_in Jtilde btilde DT x0
 
-F = @(x)tanh(x);
-DT = 1e-2;
+F = @(x)tanh(x); %nonlinearity
+DT = 1e-2; %discrete time step used in backprop trained rate model
 
 %% Initalize state variables
 

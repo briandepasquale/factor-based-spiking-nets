@@ -24,6 +24,13 @@ etaus = exp(-dt/taus);
 etauf = exp(-dt/tauf);
 etauV = exp(-dt/tauV);
 
+%Jmu: mean recurrent matrix in factor approximating network for spiking
+    %neurons
+%J0f: random f connections for facdtor approximating network for spiking
+    %neurons
+%J0s: random s connections for facdtor approximating network for spiking
+    %neurons
+
 rng(1);
 Jmu = muf * (1/tauf) * 1/(N) * ones(N);
 J0f = gf * (1/tauf) * 1/sqrt(N) * randn(N);
@@ -48,7 +55,7 @@ delete(findobj(ah1,'Type','Line')); delete(findobj(ah2,'Type','Line'));
 lh_f = line(ah1,'Color','b','LineWidth',2,'Marker','none','LineStyle',':');
 lh_fin = line(ah1,'Color','k','LineWidth',1,'Marker','none','LineStyle',':');
 
-nplt = 3; %number of factors and rates/voltages to plot
+nplt = 3; %number of factors and voltages to plot
         
 %line handle for generated output
 lh_z = line(ah1,'Color','r','LineWidth',1,'Marker','none','LineStyle','-');
@@ -147,6 +154,7 @@ if strcmp(task,'CI')
     J0fbars0 = J0fbars;
     sf0 = sf;
     ss0 = ss;    
+    
 end
     
 %%
@@ -184,7 +192,8 @@ while go %run until stop condition is met
                 [xprimes,fin,f,TTrial] = backprop_rate_model;
                 ytilde = V' * xprimes;
                 
-                %return state parameters of spiking network to x0
+                %return state parameters of spiking network to initial
+                %state
                 y = y0;
                 v = v0;
                 J0ss = J0ss0; 
@@ -221,8 +230,6 @@ while go %run until stop condition is met
     sf = etauf * sf + S;
     s = [ss;sf];   
 
-    %generate output and learned feedback output
-    %genearate real feedback after number of initialization trials
     if t_trial_num > Tinit 
         
         switch mode                
@@ -328,8 +335,7 @@ while go %run until stop condition is met
         end                  
         axis tight
 
-        %plot some voltages for spiking and rate variable for
-        %rate models
+        %plot some voltages
         maxV = 0;
         for i = 1:nplt
             maxV = maxV + 0.05 * abs(min(vs(i,:)));

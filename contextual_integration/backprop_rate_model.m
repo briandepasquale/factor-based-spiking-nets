@@ -1,14 +1,16 @@
-function [xprimes,fin,f,TTrial] = backprop_rate_model(x)
+function [xprimes,fin,f,TTrial] = backprop_rate_model
 
-global Ntilde dt utilde_in Jtilde btilde DT
+global Ntilde dt utilde_in Jtilde btilde DT x0
 
 F = @(x)tanh(x);
+DT = 1e-2;
 
 %% Initalize state variables
 
 ttrial = inf; %time in current trial
 TTrial = 0; %total time in current trial
 go = true; %flag to quit loop
+x = x0;
 
 %% Run simulation
 

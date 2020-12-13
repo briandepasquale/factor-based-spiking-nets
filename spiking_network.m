@@ -62,12 +62,15 @@ end
                 
 %% Unpack varargin, depending on which subroutine is being run
 
-if strcmp(task, 'reaching')
-    V = varargin{1};
-    emg = varargin{2};
-elseif strcmp(task, 'cycling')
-    factors = varargin{1};
-    emg = varargin{2};
+switch task
+    case 'reaching'
+        V = varargin{1};
+        emg = varargin{2};
+    case 'cycling'
+        factors = varargin{1};
+        emg = varargin{2};
+    case 'CI'
+        V = varargin{1};
 end
 
 if any(strcmp(mode,{'train','test'}))       
@@ -86,8 +89,7 @@ if strcmp(mode,'demean')
     vJsbar = zeros(N,1);
     
 elseif any(strcmp(mode,{'train','test'}))      
-    nMSEy = NaN(T,1); %normalized mean square error, saved for each trial
-    nMSEf = NaN(T,1); %normalized mean square error, saved for each trial
+    nMSE = NaN(T,1); %normalized mean square error, saved for each trial
     
     if any(strcmp(mode,{'train'}))                       
         W = zeros(m,P+1); %for computing learned output matrix
@@ -121,6 +123,34 @@ t_trial_num = 0; %trial number
 ttime = 1; %time across all trials
 go = true; %flag to quit loop
 
+%% For CI task, produce a more adapted initial state for the spiking network and save it
+
+if strcmp(task,'CI')     
+    
+    for i = 1:1000
+        [~,fin] = backprop_rate_model;
+        vinf = J0fbars - vJsbar + u * y + J0ss + J0fs + u_in * fin(:,i);
+        v = vinf + (v - vinf) * etauV;
+        S = v >= vth;
+        v(S) = vth + vr;
+        J0ss = J0ss * etaus + sum(J0s(:,S),2);
+        J0fs = J0fs * etauf + sum(J0f(:,S),2); 
+        J0fbars = J0fbars * etauf + sum(Jmu(:,S),2);
+        ss = etaus * ss + S;
+        sf = etauf * sf + S;
+    end
+
+    y0 = y;
+    v0 = v;
+    J0ss0 = J0ss; 
+    J0fs0 = J0fs;
+    J0fbars0 = J0fbars;
+    sf0 = sf;
+    ss0 = ss;    
+end
+    
+%%
+
 if any(strcmp(mode,{'test'}))
     rng(4);
 end
@@ -135,17 +165,34 @@ while go %run until stop condition is met
         ttrial = 1; %reset trial time counter to 1
         t_trial_num = t_trial_num + 1; %increase trial count by 1
         
-        if strcmp(task, 'reaching')
-            if t_trial_num == 1
-                [xprimes,x,fin,f,TTrial] = rate_model(emg);
-            else
-                [xprimes,x,fin,f,TTrial] = rate_model(emg, x);
-            end
-            ytilde = V' * xprimes;
-        elseif strcmp(task, 'cycling')
-            [fin,TTrial] = trial_cycling(dt);         
-            ytilde = factors';
-            f = emg';             
+        switch task
+            
+            case 'reaching'
+                if t_trial_num == 1
+                    [xprimes,x,fin,f,TTrial] = rate_model(emg);
+                else
+                    [xprimes,x,fin,f,TTrial] = rate_model(emg, x);
+                end
+                ytilde = V' * xprimes;
+                
+            case 'cycling'
+                [fin,TTrial] = trial_cycling(dt);         
+                ytilde = factors';
+                f = emg';    
+                
+            case 'CI'
+                [xprimes,fin,f,TTrial] = backprop_rate_model;
+                ytilde = V' * xprimes;
+                
+                %return state parameters of spiking network to x0
+                y = y0;
+                v = v0;
+                J0ss = J0ss0; 
+                J0fs = J0fs0;
+                J0fbars = J0fbars0;
+                sf = sf0;
+                ss = ss0; 
+                
         end
                  
         zs = zeros(m,TTrial); %for collecting z(t), for plotting
@@ -225,12 +272,14 @@ while go %run until stop condition is met
         % text output, plot things, perform computations
         if ttrial == TTrial
 
-            %compute normalized output error on this trial
-            nMSEy(t_trial_num-Tinit) = sum(diag((ys - ytilde) * (ys - ytilde)'))/...
-                sum(diag(ytilde * ytilde'));
-
-            nMSEf(t_trial_num-Tinit) = sum(diag((zs - f) * (zs - f)'))/...
-                sum(diag(f * f'));
+            if strcmp(task, 'CI')
+                nMSE(t_trial_num-Tinit) = sign(zs(end)) == sign(f(end));
+            else
+                %compute normalized output error on this trial
+                nMSE(t_trial_num-Tinit) = sum(diag((ys - ytilde) * (ys - ytilde)'))/...
+                    sum(diag(ytilde * ytilde'));
+                
+            end
 
             if strcmp(mode,'demean')                                       
 
@@ -260,9 +309,9 @@ while go %run until stop condition is met
         if any(strcmp(mode,{'demean'}))                     
             fprintf('%s, %g trials of %g \n', mode, t_trial_num-Tinit, T);                       
         else                      
-            %print median (across trials) nMSEy
+            %print median (across trials) nMSE
             fprintf('%s, %g Error, %g trials of %g \n', ...
-                mode, nanmedian(nMSEy), t_trial_num-Tinit, T);                                               
+                mode, nanmedian(nMSE), t_trial_num-Tinit, T);                                               
         end
 
         %plot generated output
@@ -317,8 +366,7 @@ switch mode
         varargout{4} = PW; %inverse covariance of y
         
     case {'test'}      
-        varargout{1} = nMSEy; %normalized mean square error for each trial
-        varargout{2} = nMSEf;
+        varargout{1} = nMSE; %normalized mean square error for each trial
         
 end
 

@@ -280,7 +280,7 @@ while go %run until stop condition is met
         if ttrial == TTrial
 
             if strcmp(task, 'CI')
-                nMSE(t_trial_num-Tinit) = sign(zs(end)) == sign(f(end));
+                nMSE(t_trial_num-Tinit) = (sign(zs(end)) == sign(f(end)));
             else
                 %compute normalized output error on this trial
                 nMSE(t_trial_num-Tinit) = sum(diag((ys - ytilde) * (ys - ytilde)'))/...
@@ -317,8 +317,13 @@ while go %run until stop condition is met
             fprintf('%s, %g trials of %g \n', mode, t_trial_num-Tinit, T);                       
         else                      
             %print median (across trials) nMSE
-            fprintf('%s, %g Error, %g trials of %g \n', ...
-                mode, nanmedian(nMSE), t_trial_num-Tinit, T);                                               
+            if strcmp(task, 'CI')
+                fprintf('%s, %g frac. correct, %g trials of %g \n', ...
+                    mode, nanmean(nMSE), t_trial_num-Tinit, T); 
+            else
+                fprintf('%s, %g Error, %g trials of %g \n', ...
+                    mode, nanmedian(nMSE), t_trial_num-Tinit, T);  
+            end
         end
 
         %plot generated output

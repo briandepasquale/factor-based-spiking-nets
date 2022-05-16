@@ -2,7 +2,7 @@
 
 Demos for training recurrent spiking networks, as described in `Building spiking network models from latent factors provides conceptual insight into neural circuit function`
 
-Demos were tested and successfully executed 07-30-2021 on MATLAB 2016a.
+Demos were tested and successfully executed 05-15-2022 on MATLAB 2016a&b and MATLAB 2021b.
 
 ## Cycling
 

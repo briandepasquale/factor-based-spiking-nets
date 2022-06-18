@@ -1,6 +1,6 @@
 function varargout = spiking_network(task,mode,T,varargin)
 
-global N P m u u_in muf gs gf dt
+global N u u_in muf gs gf dt
 
 %etaus: timescale of s synaptic currents in spiking model
 %etauf: timescale of f synaptic currents in spiking model
@@ -36,6 +36,49 @@ Jmu = muf * (1/tauf) * 1/(N) * ones(N);
 J0f = gf * (1/tauf) * 1/sqrt(N) * randn(N);
 J0s = gs * (1/taus) * 1/sqrt(N) * randn(N);
 
+%% Unpack varargin, depending on which subroutine is being run
+
+switch task
+    case 'reaching'
+        V = varargin{1};
+        emg = varargin{2};
+        m = size(emg, 3) + 1;
+        P = size(V, 2);
+    case 'cycling'
+        factors = varargin{1};
+        emg = varargin{2};
+        m = size(emg, 2);
+        P = size(factors, 2);
+    case 'CI'
+        V = varargin{1};
+        m = 1;
+        P = size(V, 2);
+    case 'reaching-cycling'
+        
+        factors_V = varargin{1};
+        emg = varargin{2};
+        
+        reaching_emg = emg{1};
+        cycling_emg = emg{2};
+        
+        m = size(reaching_emg, 3) + 1 + size(cycling_emg, 2);
+        
+        V = factors_V{1};
+        factors = factors_V{2};
+        
+        P = size(V, 2) + size(factors, 2);
+        
+end
+
+if any(strcmp(mode,{'train', 'test', 'data'}))       
+    vJsbar = varargin{3};
+end
+
+if any(strcmp(mode,{'test', 'data'}))
+    w = varargin{4}; %learned connection, N-space to P-space
+    W = varargin{5}; %learned output connections    
+end   
+
 %% Figure, for plotting various things as simulation runs
 
 %figure handle
@@ -52,13 +95,16 @@ xlabel(ah2,'time (s)');
 delete(findobj(ah1,'Type','Line')); delete(findobj(ah2,'Type','Line'));
 
 %line handles for input and target output
-lh_f = line(ah1,'Color','b','LineWidth',2,'Marker','none','LineStyle',':');
 lh_fin = line(ah1,'Color','k','LineWidth',1,'Marker','none','LineStyle',':');
 
 nplt = 3; %number of factors and voltages to plot
         
 %line handle for generated output
-lh_z = line(ah1,'Color','r','LineWidth',1,'Marker','none','LineStyle','-');
+nplt_z = min(m, 7);
+for i = 1:nplt_z
+    lh_f(i) = line(ah1,'Color','b','LineWidth',2,'Marker','none','LineStyle',':');
+    lh_z(i) = line(ah1,'Color','r','LineWidth',1,'Marker','none','LineStyle','-');
+end
 
 %line handles for factors, factor targets and rates/voltages
 for i = 1:nplt
@@ -66,28 +112,7 @@ for i = 1:nplt
     lh_ytilde(i) = line(ah2,'Color','r','LineWidth',2,'Marker','none','LineStyle',':');
     lh_V(i) = line(ah3,'Color','b','LineWidth',2,'Marker','none','LineStyle','-');
 end
-                
-%% Unpack varargin, depending on which subroutine is being run
-
-switch task
-    case 'reaching'
-        V = varargin{1};
-        emg = varargin{2};
-    case 'cycling'
-        factors = varargin{1};
-        emg = varargin{2};
-    case 'CI'
-        V = varargin{1};
-end
-
-if any(strcmp(mode,{'train','test'}))       
-    vJsbar = varargin{3};
-end
-
-if strcmp(mode,{'test'})
-    w = varargin{4}; %learned connection, N-space to P-space
-    W = varargin{5}; %learned output connections    
-end    
+       
 
 %% Initialize matrices for saving data, depending on which subroutine is being run
 
@@ -95,7 +120,7 @@ if strcmp(mode,'demean')
     sum_vJsbar = zeros(N,1);
     vJsbar = zeros(N,1);
     
-elseif any(strcmp(mode,{'train','test'}))      
+elseif any(strcmp(mode,{'train','test','data'}))      
     nMSE = NaN(T,1); %normalized mean square error, saved for each trial
     
     if any(strcmp(mode,{'train'}))                       
@@ -175,6 +200,37 @@ while go %run until stop condition is met
         
         switch task
             
+            case 'reaching-cycling'
+                
+                if rand > 1/2
+                
+                    if t_trial_num == 1
+                        [xprimes,x,fin,f,TTrial] = rate_model(reaching_emg);
+                    else
+                        [xprimes,x,fin,f,TTrial] = rate_model(reaching_emg, x);
+                    end
+                    
+                    ytilde = cat(1, V' * xprimes, zeros(size(factors, 2), size(xprimes,2)));
+                    f = cat(1, f, zeros(size(cycling_emg, 2), size(xprimes,2)));
+                    fin = cat(1, fin, zeros(size(u_in,2) - size(fin, 1), size(xprimes,2)));
+                
+                else
+                    
+                    [fin,TTrial] = trial_cycling(dt);         
+                    ytilde = factors';
+                    f = cycling_emg';
+                    
+                    f = cat(2, f, zeros(size(f,1), TTrial/2));
+                    ytilde = cat(2, ytilde, zeros(size(ytilde,1), TTrial/2));
+                    fin = cat(2, fin, ones(size(fin,1), TTrial/2));              
+                    TTrial = size(f,2);
+                    
+                    ytilde = cat(1, zeros(size(V, 2), size(ytilde,2)), ytilde);
+                    f = cat(1, zeros(size(reaching_emg, 3) + 1, size(ytilde,2)), f);
+                    fin = cat(1, zeros(size(u_in, 2) - size(fin, 1), size(ytilde,2)), fin);
+
+                end
+            
             case 'reaching'
                 if t_trial_num == 1
                     [xprimes,x,fin,f,TTrial] = rate_model(emg);
@@ -210,6 +266,15 @@ while go %run until stop condition is met
 
         if strcmp(mode,'demean')
             zsT = zeros(N,TTrial); %for collecting recurrent inputs for mean computation
+            
+        elseif strcmp(mode, 'data')
+            
+            if t_trial_num > Tinit
+                data(t_trial_num - Tinit) = struct('z', nan(m, TTrial), 'f', nan(m, TTrial), ...
+                    'y', nan(P, TTrial), 'ytilde', nan(P, TTrial), 'fin', nan(size(u_in,2), TTrial), ...
+                    'S', nan(N, TTrial));
+            end
+            
         end  
         
     end
@@ -237,7 +302,7 @@ while go %run until stop condition is met
                 y = ytilde(:,ttrial); %use factor targets as feedback 
                 z = f(:,ttrial);
 
-            case {'train','test'}                   
+            case {'train','test','data'}                   
                 y = w * s;  %feedback in P
                 z = W * [y;1];
 
@@ -273,6 +338,15 @@ while go %run until stop condition is met
             k = (1 + [y;1]' * xP)\xP';                        
             PW = PW - xP * k;
             W = W - (z - f(:,ttrial)) * k;
+            
+        elseif strcmp(mode, 'data')                           
+                        
+            data(t_trial_num - Tinit).ytilde(:,ttrial)  = ytilde(:,ttrial);
+            data(t_trial_num - Tinit).y(:,ttrial)  = y;
+            data(t_trial_num - Tinit).f(:,ttrial)  = f(:,ttrial);
+            data(t_trial_num - Tinit).z(:,ttrial) = z;
+            data(t_trial_num - Tinit).fin(:,ttrial) = fin(:,ttrial);
+            data(t_trial_num - Tinit).S(:,ttrial) = S;
 
         end
                         
@@ -310,7 +384,6 @@ while go %run until stop condition is met
         clc;
 
         %plot f and fin
-        set(lh_f,'XData',dt*[ttrial-TTrial+1:ttrial],'YData',f(1,:));
         set(lh_fin,'XData',dt*[ttrial-TTrial+1:ttrial],'YData',fin(1,:));
 
         if any(strcmp(mode,{'demean'}))                     
@@ -327,7 +400,10 @@ while go %run until stop condition is met
         end
 
         %plot generated output
-        set(lh_z,'XData',dt*[ttrial-TTrial+1:ttrial],'YData',zs(1,:));
+        for i = 1:nplt_z
+            set(lh_f(i),'XData',dt*[ttrial-TTrial+1:ttrial],'YData', f(i,:));
+            set(lh_z(i),'XData',dt*[ttrial-TTrial+1:ttrial],'YData', zs(i,:));
+        end
         axis tight
 
         %plot some factor trajectories
@@ -378,6 +454,9 @@ switch mode
         
     case {'test'}      
         varargout{1} = nMSE; %normalized mean square error for each trial
+        
+    case {'data'}      
+        varargout{1} = data;   
         
 end
 

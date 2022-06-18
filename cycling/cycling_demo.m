@@ -5,7 +5,7 @@ global N P m u u_in muf gs gf dt
 N = 800; %number of neurons in the spiking network
 dt = 1e-3; %integration timestep
 
-load('/cycling_data.mat','emg', 'factors');
+load('./cycling_data.mat','emg', 'factors');
 
 m_in = 1; %number of inputs
 m = size(emg,2); %number of outputs

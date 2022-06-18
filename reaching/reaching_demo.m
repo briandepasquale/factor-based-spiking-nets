@@ -7,7 +7,7 @@ N = 1200; %number of neurons in the spiking network
 Ntilde = 800; %number of neurons in the rate network
 dt = 1e-3; %integration timestep
 
-load('/reaching_data.mat','emg');
+load('./reaching_data.mat','emg');
 
 m_in = 3; %number of inputs
 m = 3; %number of outputs

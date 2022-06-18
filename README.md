@@ -1,6 +1,6 @@
 # factor-based-spiking-nets
 
-Demos for training recurrent spiking networks, as described in `Building spiking network models from latent factors provides conceptual insight into neural circuit function`
+Demos for training recurrent spiking networks, as described in `The centrality of population-level factors to network computation is demonstrated by a versatile approach for training spiking networks`.
 
 Demos were tested and successfully executed 05-15-2022 on MATLAB 2016a&b and MATLAB 2021b.
 

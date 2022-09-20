@@ -27,10 +27,10 @@ while go %run until stop condition is met
     if ttrial > TTrial       
         ttrial = 1; %reset trial time counter to 1
         [fin,f,TTrial] = trial_reaching(dt,emg);            
-        xprimes = zeros(Ntilde+m,TTrial);  
+        xprimes = zeros(Ntilde,TTrial);  
     end
 
-    xprime = [x; f(:,ttrial)];
+    xprime = x;
 
     xinf = F(Jtilde * x + utilde * f(:,ttrial) + utilde_in * fin(:,ttrial));
     x = xinf + (x - xinf) * etau;                                            

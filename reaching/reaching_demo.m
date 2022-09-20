@@ -22,10 +22,9 @@ utilde_in = -1 + 2 * rand(Ntilde,m_in);
 gtilde = 1.4;
 Jtilde = gtilde * 1/sqrt(Ntilde) * randn(Ntilde);
 utilde = -1 + 2 * rand(Ntilde,m);   
-Jtildeprime = [Jtilde, utilde];
 
 TPCA = 300;
-XX = zeros(Ntilde+m);
+XX = zeros(Ntilde);
 
 for i = 1:TPCA
     if i == 1
@@ -58,7 +57,7 @@ gf = 0.13; %gain of fast random synpases
 
 U = g * orth((-1 + 2 * rand(N,Ntilde)));
 u_in = U * utilde_in; 
-u = U * Jtildeprime * V;   
+u = U * Jtilde * V;   
 
 %% demean spiking inputs
 

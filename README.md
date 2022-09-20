@@ -19,3 +19,7 @@ Train a spiking network to perform the contextual integration task. A backprop t
 ## Cycling-reaching (two-task network)
 
 Train a spiking network to perform the cycling task and the reaching task. The cycling factors and emg outputs are provided. The reaching emg outputs are provided, and code is provided to derive the factors from a rate-based model.
+
+## Factor-based firing rate
+
+Example of computing the factor based rate using cycling task factors.

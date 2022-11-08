@@ -1,4 +1,4 @@
-# Factor-based Spiking Network
+# Factor-based Spiking Networks
 
 Demos for training recurrent spiking networks, as described in `The centrality of population-level factors to network computation is demonstrated by a versatile approach for training spiking networks`.
 

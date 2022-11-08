@@ -1,5 +1,7 @@
 # Factor-based Spiking Networks
 
+[![DOI](https://zenodo.org/badge/202791674.svg)](https://zenodo.org/badge/latestdoi/202791674)
+
 Demos for training recurrent spiking networks, as described in `The centrality of population-level factors to network computation is demonstrated by a versatile approach for training spiking networks`.
 
 Demos were tested and successfully executed 05-15-2022 on MATLAB 2016a&b and MATLAB 2021b.
